@@ -1,3 +1,6 @@
+from virl2_client import ClientLibrary
+
+
 class MockCMLServer(object):
     @staticmethod
     def get_lab_tiles(req, ctx=None):
@@ -611,7 +614,9 @@ class MockCMLServer(object):
 
     @staticmethod
     def get_sys_info(req, ctx=None):
-        response = {"version": "2.8.0+build.6", "ready": True}
+        # Keep mocked controller version aligned with installed client minor.
+        client_version = str(ClientLibrary.VERSION).split("+")[0]
+        response = {"version": f"{client_version}+build.1", "ready": True}
         return response
 
     @staticmethod
