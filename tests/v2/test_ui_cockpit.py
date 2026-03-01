@@ -44,3 +44,17 @@ def test_ui_does_not_open_when_current_lab_missing(monkeypatch):
 
     assert result.exit_code == 0
     assert opened == []
+
+
+def test_ui_does_not_open_when_lab_lookup_fails(monkeypatch):
+    opened = []
+    monkeypatch.setattr("virl.cli.ui.commands.VIRLServer", lambda: FakeServer())
+    monkeypatch.setattr("virl.cli.ui.commands.get_cml_client", lambda _server: object())
+    monkeypatch.setattr("virl.cli.ui.commands.get_current_lab", lambda: "lab-123")
+    monkeypatch.setattr("virl.cli.ui.commands.safe_join_existing_lab", lambda _lab_id, _client: None)
+    monkeypatch.setattr("virl.cli.ui.commands.webbrowser.open", lambda url: opened.append(url))
+
+    result = CliRunner().invoke(ui, [])
+
+    assert result.exit_code == 0
+    assert opened == []
