@@ -32,6 +32,11 @@ class FakeServer:
     user = "cml-user"
 
 
+class _RaisingNodeType:
+    def lower(self):
+        raise KeyError("bad node type")
+
+
 def test_lab_info_maps_ios_node_to_ios_ned():
     node = FakeNode("rtr-1", "iosv", interfaces=[FakeInterface(ipv4=["10.0.0.1"])])
     inventory = lab_info(FakeLab([node]), FakeServer, "ssh")
@@ -61,3 +66,19 @@ def test_nso_payload_generator_renders_xml():
 
     assert "<devices" in payload
     assert "<name>rtr-1</name>" in payload
+
+
+def test_lab_info_maps_asa_node():
+    node = FakeNode("asa-1", "asav", interfaces=[FakeInterface(ipv4=["10.0.0.10"])])
+    inventory = lab_info(FakeLab([node]), FakeServer, "ssh")
+
+    assert inventory[0]["ned"] == "{{ ASA_NED_ID }}"
+    assert inventory[0]["ns"] == "{{ ASA_NAMESPACE }}"
+
+
+def test_lab_info_ignores_keyerror_during_node_type_lookup():
+    node = FakeNode("bad-1", _RaisingNodeType(), interfaces=[FakeInterface(ipv4=["10.0.0.11"])])
+
+    inventory = lab_info(FakeLab([node]), FakeServer, "ssh")
+
+    assert inventory == []
