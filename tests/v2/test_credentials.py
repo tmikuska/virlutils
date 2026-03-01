@@ -25,6 +25,11 @@ def test_get_prop_prefers_environment_when_no_virlrc(monkeypatch, tmp_path):
     assert credentials.get_prop("VIRL_HOST") == "env-host"
 
 
+def test_get_password_uses_getpass(monkeypatch):
+    monkeypatch.setattr(credentials.getpass, "getpass", lambda prompt: f"secret-for-{prompt}")
+    assert credentials._get_password("pw") == "secret-for-pw"
+
+
 def test_get_prop_reads_home_virlrc_when_environment_missing(monkeypatch, tmp_path):
     monkeypatch.delenv("VIRL_USERNAME", raising=False)
     monkeypatch.setattr(credentials.os, "getcwd", lambda: str(tmp_path))
@@ -35,6 +40,21 @@ def test_get_prop_reads_home_virlrc_when_environment_missing(monkeypatch, tmp_pa
     home_rc.write_text("VIRL_USERNAME=home-admin\n")
 
     assert credentials.get_prop("VIRL_USERNAME") == "home-admin"
+
+
+def test_get_prop_reads_parent_virlrc_when_find_virl_returns_directory(monkeypatch, tmp_path):
+    work_dir = tmp_path / "child"
+    work_dir.mkdir()
+    parent_dir = tmp_path / "parent"
+    parent_dir.mkdir()
+    (parent_dir / ".virlrc").write_text("VIRL_HOST=parent-host\n")
+
+    monkeypatch.setattr(credentials.os, "getcwd", lambda: str(work_dir))
+    monkeypatch.setattr(credentials, "find_virl", lambda: str(parent_dir))
+    monkeypatch.delenv("VIRL_HOST", raising=False)
+    monkeypatch.setattr(credentials.os.path, "expanduser", lambda _: str(tmp_path / "missing-home"))
+
+    assert credentials.get_prop("VIRL_HOST") == "parent-host"
 
 
 def test_get_credentials_returns_tuple_with_optional_config(monkeypatch):
