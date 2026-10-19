@@ -14,9 +14,47 @@ from virl2_client import ClientLibrary
 
 from .mocks import MockCMLServer
 
-# set to warning to hide unwanted HTTP requests
-logger = logging.getLogger("httpx")
-logger.setLevel(logging.WARNING)
+# set to warning to hide unwanted HTTP requests (httpx 2.10-, httpx2 2.11+)
+for _http_logger in ("httpx", "httpx2"):
+    logging.getLogger(_http_logger).setLevel(logging.WARNING)
+
+
+def _ensure_httpcore2_mocker():
+    """Register respx's httpcore2 mocker if pytest-httpx2 has not already done so.
+
+    respx only patches httpcore by default. virl2_client 2.11+ speaks HTTP through
+    httpx2/httpcore2, so the mock router must target those modules instead.
+    pytest-httpx2 registers this mocker as a pytest plugin; define the same subclass
+    here so the unittest suite works without that plugin installed.
+    """
+    from respx.mocks import HTTPCoreMocker, Mocker
+
+    if "httpcore2" in Mocker.registry:
+        return
+
+    class HTTPCore2Mocker(HTTPCoreMocker):
+        name = "httpcore2"
+        targets = [
+            "httpcore2._sync.connection.HTTPConnection",
+            "httpcore2._sync.connection_pool.ConnectionPool",
+            "httpcore2._sync.http_proxy.HTTPProxy",
+            "httpcore2._async.connection.AsyncHTTPConnection",
+            "httpcore2._async.connection_pool.AsyncConnectionPool",
+            "httpcore2._async.http_proxy.AsyncHTTPProxy",
+        ]
+
+    # Class body registers the mocker via Mocker.__init_subclass__.
+    _ = HTTPCore2Mocker
+
+
+def _respx_using():
+    """respx transport backend matching the installed virl2_client HTTP stack."""
+    import virl2_client.models.authentication as auth
+
+    if getattr(auth, "httpx2", None) is None:
+        return "httpcore"
+    _ensure_httpcore2_mocker()
+    return "httpcore2"
 
 
 def setup_cml_environ():
@@ -56,7 +94,7 @@ class BaseCMLTest(unittest.TestCase):
     def get_context(self):
         if CLIENT_VERSION >= CLIENT_VERSION.__class__("2.5.0"):
             self.setup_func = self.uni_respx
-            return respx.mock(assert_all_called=False)
+            return respx.mock(assert_all_called=False, using=_respx_using())
         else:
             self.setup_func = self.uni_request
             return requests_mock.Mocker()
